@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <string>
+#include <sstream>
 
 #include <sqlite3.h>
 
@@ -20,6 +21,8 @@
 
 using std::cout;
 
+void read_barcode(libusb_device_handle* dev_handle);
+
 
 int main(int argc, char *argv[])
 {
@@ -33,18 +36,7 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-
-//    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
-//    db.setDatabaseName("../inventory.db");
-//
-//    if (!db.open()) {
-//        qDebug("Error occurred opening the database.");
-//        qDebug("%s.", qPrintable(db.lastError().text()));
-//        return -1;
-//    }
-
-
-    // search for conencted barcode readers
+    // search for connected barcode readers
     libusb_device **devs; //pointer to pointer of device, used to retrieve a list of devices
     libusb_context *ctx = NULL; //a libusb session
     libusb_device_handle *dev_handle;
@@ -58,9 +50,6 @@ int main(int argc, char *argv[])
    
     count = libusb_get_device_list(ctx, &devs); //get the list of devices
 
-
-    cout << "getting usb device list\n";
-
     for (size_t idx = 0; idx < count; idx++)
     {
         libusb_device *device = devs[idx];
@@ -68,7 +57,7 @@ int main(int argc, char *argv[])
 
         rc = libusb_get_device_descriptor(device, &desc);
 
-        cout << "Vendor:Device = " << desc.idVendor << desc.idProduct << "\n";
+        //cout << "Vendor:Device = " << desc.idVendor << desc.idProduct << "\n";
 
     }   
 
@@ -111,37 +100,9 @@ int main(int argc, char *argv[])
 
     
     // scan a barcode
+    read_barcode(dev_handle);
 
-//  std::vector<unsigned char> data;
-    unsigned char data[20];
-    int actual_length = 0;
-
-    r = libusb_interrupt_transfer(dev_handle, LIBUSB_ENDPOINT_IN | 3, &data[0], sizeof(data), &actual_length, 10000);
-
-    for(int counter = 0; counter < actual_length; counter ++)
-    {
-        printf("data: %d\n", data[counter]);
-    }
-
-    r = libusb_interrupt_transfer(dev_handle, LIBUSB_ENDPOINT_IN | 3, &data[0], sizeof(data), &actual_length, 10000);
-
-    for(int counter = 0; counter < actual_length; counter ++)
-    {
-        printf("data: %d\n", data[counter]);
-    }
-
-
-    r = libusb_bulk_transfer(dev_handle, LIBUSB_ENDPOINT_IN | 1, &data[0], sizeof(data), &actual_length, 10000);
-
-    for(int counter = 0; counter < actual_length; counter ++)
-    {
-        printf("interrupt data: %d\n", data[counter]);
-    }
-
-    printf("size: %d\n", actual_length);
-    printf("return: %d\n", r);
-
-
+    
 //  std::string str(data.begin(),data.end());
 //    unsigned long long barcode = std::stoull(str, 0, 10);
 //
@@ -157,7 +118,9 @@ int main(int argc, char *argv[])
     libusb_close(dev_handle); //close the device we opened
     libusb_exit(ctx); //needs to be called to end the
 
-    
+
+
+
 //    QSqlQuery query(db);
 //
 //  // write something to db
@@ -180,3 +143,58 @@ int main(int argc, char *argv[])
     sqlite3_close(db);
 
 }
+
+
+void read_barcode(libusb_device_handle* dev_handle)
+{
+
+    std::vector<unsigned char> data(200);
+    int actual_length = 0;
+    int r;
+
+    r = libusb_interrupt_transfer(dev_handle, LIBUSB_ENDPOINT_IN | 3, &data[0], data.size(), &actual_length, 10000);
+
+    for(int counter = 0; counter < actual_length; counter ++)
+    {
+        printf("data: %d\n", data[counter]);
+    }
+
+    r = libusb_interrupt_transfer(dev_handle, LIBUSB_ENDPOINT_IN | 3, &data[0], data.size(), &actual_length, 10000);
+
+    for(int counter = 0; counter < actual_length; counter ++)
+    {
+        printf("data: %d\n", data[counter]);
+    }
+
+
+    r = libusb_bulk_transfer(dev_handle, LIBUSB_ENDPOINT_IN | 1, &data[0], data.size(), &actual_length, 10000);
+
+    for(int counter = 0; counter < actual_length; counter ++)
+    {
+        printf("interrupt data: %d\n", data[counter]);
+    }
+
+
+    std::ostringstream oss;
+  
+    if (!data.empty())
+    {
+      std::copy(data.begin(), data.end(),
+          std::ostream_iterator<char>(oss, ","));
+  
+      // Now add the last element with no delimiter
+      oss << data.back();
+    }
+
+    std::cout << oss.str() << std::endl;
+
+
+    printf("size: %d\n", actual_length);
+    printf("return: %d\n", r);
+
+
+}
+
+
+
+
